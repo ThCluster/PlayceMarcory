@@ -1,0 +1,5 @@
+# -*- coding: utf-8 -*-
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+
+# Create your urls here.
