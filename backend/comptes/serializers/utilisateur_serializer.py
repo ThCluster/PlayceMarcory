@@ -1,0 +1,30 @@
+# -*- coding: utf-8 -*-
+from rest_framework import serializers
+from comptes.models.utilisateur import Utilisateur
+
+# Create your serializers here.
+
+
+class UtilisateurSerializer(serializers.ModelSerializer):
+    """
+    Représente un employé déjà authentifié / consulté.
+    Utilisé en LECTURE SEULE : le mot de passe n'apparaît jamais ici,
+    et la création/modification d'un employé ne passe pas par ce serializer
+    (elle passera par une fonction PostgreSQL dédiée, ex: creer_employe()).
+    """
+
+    class Meta:
+        model = Utilisateur
+        fields = ["id_employe", "nom", "prenom", "email", "poste", "actif"]
+        read_only_fields = fields   # aucun champ modifiable via ce serializer
+
+
+class LoginSerializer(serializers.Serializer):
+    """
+    Sert uniquement à valider la FORME des identifiants envoyés.
+    Pas un ModelSerializer : ce n'est pas la représentation d'un objet,
+    c'est une action (déclenche verifier_connexion() côté PostgreSQL).
+    """
+    email = serializers.EmailField()
+    mot_de_passe = serializers.CharField(write_only=True, trim_whitespace=False)
+    

@@ -37,7 +37,9 @@ INSTALLED_APPS = [
     #Installation App
     'base.apps.BaseConfig',
     'comptes.apps.ComptesConfig',
+    'ventes.apps.VentesConfig',
 ]
+AUTH_USER_MODEL = "comptes.Utilisateur"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -80,7 +82,7 @@ DATABASES = {
      'default': {
         'PASSWORD': os.environ.get('PASSWORD'),
         'ENGINE': os.environ.get('ENGINE'),
-        'NAME': os.environ.get('DB_NAME'),
+        'NAME': os.environ.get('NAME'),
         'HOST': os.environ.get('HOST'),
         'USER': os.environ.get('DB_USER'),
         'PORT': os.environ.get('PORT')
