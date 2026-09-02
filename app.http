@@ -1,0 +1,36 @@
+### Connexion (login) - accessible sans token
+POST http://127.0.0.1:8000/api/utilisateurs/login/ HTTP/1.1
+Content-Type: application/json
+
+{
+    "email": "admin@supermarche.com",
+    "mot_de_passe": "motdepasse123"
+}
+
+###
+
+### Rafraîchir le token JWT
+POST http://127.0.0.1:8000/api/token/refresh/ HTTP/1.1
+Content-Type: application/json
+
+{
+    "refresh": "VOTRE_REFRESH_TOKEN_ICI"
+}
+
+###
+
+### Liste des utilisateurs (employés) - authentifié
+GET http://127.0.0.1:8000/api/utilisateurs/ HTTP/1.1
+Authorization: Bearer VOTRE_ACCESS_TOKEN_ICI
+
+###
+
+### Détail d'un utilisateur (employé) - authentifié
+GET http://127.0.0.1:8000/api/utilisateurs/1/ HTTP/1.1
+Authorization: Bearer VOTRE_ACCESS_TOKEN_ICI
+
+###
+
+### Utilisateur courant (moi) - authentifié
+GET http://127.0.0.1:8000/api/utilisateurs/me/ HTTP/1.1
+Authorization: Bearer VOTRE_ACCESS_TOKEN_ICI
