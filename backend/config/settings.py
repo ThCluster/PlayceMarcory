@@ -39,6 +39,8 @@ INSTALLED_APPS = [
     'comptes.apps.ComptesConfig',
     'ventes.apps.VentesConfig',
     'produits.apps.ProduitsConfig',
+    'fournisseurs.apps.FournisseursConfig',
+    'clients.apps.ClientsConfig',
 ]
 AUTH_USER_MODEL = "comptes.Utilisateur"
 
