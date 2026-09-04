@@ -1,0 +1,6 @@
+{
+  "name": "Carrefour Supermarché",
+  "description": "Tableau de bord de gestion pour Carrefour Supermarché : suivi des ventes, stocks, clients, fournisseurs et paiements.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
