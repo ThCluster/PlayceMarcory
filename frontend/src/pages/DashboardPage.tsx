@@ -168,17 +168,6 @@ export const DashboardPage: React.FC = () => {
       ? dynamicCategoryList
       : [{ name: 'Général', value: 100, revenue: totalSalesRevenue, color: '#0942a6' }];
 
-  const getProductImage = (name: string) => {
-    if (name.includes('Huile')) return 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=80&auto=format&fit=crop&q=80';
-    if (name.includes('Sucre')) return 'https://images.unsplash.com/photo-1581441363689-1f3c3c414635?w=80&auto=format&fit=crop&q=80';
-    if (name.includes('Lait')) return 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=80&auto=format&fit=crop&q=80';
-    if (name.includes('Riz')) return 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=80&auto=format&fit=crop&q=80';
-    if (name.includes('Jus')) return 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=80&auto=format&fit=crop&q=80';
-    if (name.includes('Eau')) return 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=80&auto=format&fit=crop&q=80';
-    if (name.includes('Café')) return 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=80&auto=format&fit=crop&q=80';
-    return 'https://images.unsplash.com/photo-1607006482172-3ba49a8d438d?w=80&auto=format&fit=crop&q=80';
-  };
-
   const formatFCFA = (val: number) => {
     return new Intl.NumberFormat('fr-FR').format(val) + ' FCFA';
   };
@@ -536,12 +525,9 @@ export const DashboardPage: React.FC = () => {
                   RUPTURE
                 </div>
                 <div className="flex items-center gap-3 min-w-0">
-                  <img
-                    src={getProductImage(product.name)}
-                    alt={product.name}
-                    className="w-11 h-11 object-cover rounded-xl border border-red-200 bg-white shrink-0"
-                    referrerPolicy="no-referrer"
-                  />
+                  <div className="w-11 h-11 rounded-xl border border-red-200 bg-white shrink-0 flex items-center justify-center">
+                    <Package className="w-5 h-5 text-red-300" />
+                  </div>
                   <div className="min-w-0">
                     <h3 className="font-bold text-xs text-gray-900 truncate">{product.name}</h3>
                     <p className="text-[11px] text-gray-500 mt-0.5">{product.code} • {product.category}</p>
@@ -567,12 +553,9 @@ export const DashboardPage: React.FC = () => {
                   STOCK FAIBLE
                 </div>
                 <div className="flex items-center gap-3 min-w-0">
-                  <img
-                    src={getProductImage(product.name)}
-                    alt={product.name}
-                    className="w-11 h-11 object-cover rounded-xl border border-amber-200 bg-white shrink-0"
-                    referrerPolicy="no-referrer"
-                  />
+                  <div className="w-11 h-11 rounded-xl border border-amber-200 bg-white shrink-0 flex items-center justify-center">
+                    <Package className="w-5 h-5 text-amber-300" />
+                  </div>
                   <div className="min-w-0">
                     <h3 className="font-bold text-xs text-gray-900 truncate">{product.name}</h3>
                     <p className="text-[11px] text-gray-500 mt-0.5">{product.code} • {product.category}</p>
@@ -679,12 +662,9 @@ export const DashboardPage: React.FC = () => {
                         </td>
                         <td className="py-3 px-2">
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <img
-                              src={getProductImage(p.name)}
-                              alt={p.name}
-                              className="w-8 h-8 object-cover rounded-lg border border-gray-100 shrink-0"
-                              referrerPolicy="no-referrer"
-                            />
+                            <div className="w-8 h-8 rounded-lg border border-gray-100 bg-gray-50 shrink-0 flex items-center justify-center">
+                              <Package className="w-4 h-4 text-gray-300" />
+                            </div>
                             <div className="min-w-0">
                               <p className="font-bold text-gray-900 truncate">{p.name}</p>
                               <p className="text-[10px] text-gray-400">{p.category}</p>

@@ -8,14 +8,14 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useApp();
 
-  const [email, setEmail] = useState('admin@carrefour.ci');
-  const [password, setPassword] = useState('123456');
+  const [email, setEmail] = useState('admin@supermarche.com');
+  const [password, setPassword] = useState('demo1234');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       setError('Veuillez remplir tous les champs');
@@ -25,12 +25,12 @@ export const LoginPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      login(email, password);
+      await login(email, password);
       setIsLoading(false);
       navigate('/');
     } catch (err: any) {
       setIsLoading(false);
-      setError(err?.message || 'Identifiants invalides');
+      setError(err?.message || 'Email ou mot de passe incorrect.');
     }
   };
 

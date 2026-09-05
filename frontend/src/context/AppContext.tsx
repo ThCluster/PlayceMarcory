@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   Sale,
   Purchase,
@@ -11,12 +11,14 @@ import {
   StockMovement,
   NotificationItem,
 } from '../types';
+import { loginBackend, logoutBackend } from '../api/client';
+import { loadAllData } from '../api/services';
 
 interface AppContextType {
   // Auth
   isAuthenticated: boolean;
   currentUser: { name: string; email: string; role: string; code?: string } | null;
-  login: (email: string, pass: string) => void;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 
   // Data
@@ -158,20 +160,20 @@ const initialPurchases: Purchase[] = [
 ];
 
 const initialProducts: Product[] = [
-  { id: '1', code: 'PRD-001', name: 'Huile végétale 1L', category: 'Alimentation', price: 1500, cost: 1100, stock: 0, minStock: 15, unit: 'Bouteille', imageUrl: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&q=80&w=400' },
-  { id: '2', code: 'PRD-002', name: 'Sucre Poudre 1kg', category: 'Alimentation', price: 900, cost: 650, stock: 8, minStock: 20, unit: 'Paquet', imageUrl: 'https://images.unsplash.com/photo-1581441363689-1f3c3c414635?auto=format&fit=crop&q=80&w=400' },
-  { id: '3', code: 'PRD-003', name: 'Lait entier 1L', category: 'Boissons', price: 1200, cost: 850, stock: 0, minStock: 20, unit: 'Brique', imageUrl: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&q=80&w=400' },
-  { id: '4', code: 'PRD-004', name: 'Riz Parfumè 5kg', category: 'Alimentation', price: 4500, cost: 3400, stock: 7, minStock: 15, unit: 'Sac', imageUrl: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&q=80&w=400' },
-  { id: '5', code: 'PRD-005', name: 'Savon de Toilette 250g', category: 'Hygiène', price: 400, cost: 250, stock: 0, minStock: 25, unit: 'Unité', imageUrl: 'https://images.unsplash.com/photo-1607006344380-b6775a0824a7?auto=format&fit=crop&q=80&w=400' },
-  { id: '6', code: 'PRD-006', name: 'Jus d’Orange Pure 1L', category: 'Boissons', price: 1100, cost: 750, stock: 48, minStock: 15, unit: 'Bouteille', imageUrl: 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?auto=format&fit=crop&q=80&w=400' },
-  { id: '7', code: 'PRD-007', name: 'Lessive Poudre 1kg', category: 'Entretien', price: 1800, cost: 1300, stock: 32, minStock: 10, unit: 'Sachet', imageUrl: 'https://images.unsplash.com/photo-1585842378054-ee2e52f94ba2?auto=format&fit=crop&q=80&w=400' },
-  { id: '8', code: 'PRD-008', name: 'Pâtes Spaghettis 500g', category: 'Alimentation', price: 600, cost: 400, stock: 95, minStock: 30, unit: 'Paquet', imageUrl: 'https://images.unsplash.com/photo-1621996346565-e3d5d6281216?auto=format&fit=crop&q=80&w=400' },
-  { id: '9', code: 'PRD-009', name: 'Eau Minérale 1.5L (Pack x6)', category: 'Boissons', price: 2200, cost: 1500, stock: 120, minStock: 25, unit: 'Pack', imageUrl: 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?auto=format&fit=crop&q=80&w=400' },
-  { id: '10', code: 'PRD-010', name: 'Café Moulu 250g', category: 'Alimentation', price: 1700, cost: 1200, stock: 3, minStock: 15, unit: 'Boîte', imageUrl: 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&q=80&w=400' },
-  { id: '11', code: 'PRD-011', name: 'Papier Hygiénique (Pack x12)', category: 'Hygiène', price: 2500, cost: 1800, stock: 0, minStock: 10, unit: 'Pack', imageUrl: 'https://images.unsplash.com/photo-1584556812952-905ffd0c611a?auto=format&fit=crop&q=80&w=400' },
-  { id: '12', code: 'PRD-012', name: 'Dentifrice Fluor 100ml', category: 'Hygiène', price: 850, cost: 550, stock: 64, minStock: 15, unit: 'Tube', imageUrl: 'https://images.unsplash.com/photo-1559598467-f8b76c8155d0?auto=format&fit=crop&q=80&w=400' },
-  { id: '13', code: 'PRD-013', name: 'Sardines à l’huile 125g', category: 'Alimentation', price: 500, cost: 350, stock: 110, minStock: 40, unit: 'Boîte', imageUrl: 'https://images.unsplash.com/photo-1534483509719-3feaee7c30da?auto=format&fit=crop&q=80&w=400' },
-  { id: '14', code: 'PRD-014', name: 'Biscuits au Chocolat 200g', category: 'Alimentation', price: 750, cost: 500, stock: 52, minStock: 20, unit: 'Paquet', imageUrl: 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&q=80&w=400' },
+  { id: '1', code: 'PRD-001', name: 'Huile végétale 1L', category: 'Alimentation', price: 1500, cost: 1100, stock: 0, minStock: 15, unit: 'Bouteille' },
+  { id: '2', code: 'PRD-002', name: 'Sucre Poudre 1kg', category: 'Alimentation', price: 900, cost: 650, stock: 8, minStock: 20, unit: 'Paquet' },
+  { id: '3', code: 'PRD-003', name: 'Lait entier 1L', category: 'Boissons', price: 1200, cost: 850, stock: 0, minStock: 20, unit: 'Brique' },
+  { id: '4', code: 'PRD-004', name: 'Riz Parfumè 5kg', category: 'Alimentation', price: 4500, cost: 3400, stock: 7, minStock: 15, unit: 'Sac' },
+  { id: '5', code: 'PRD-005', name: 'Savon de Toilette 250g', category: 'Hygiène', price: 400, cost: 250, stock: 0, minStock: 25, unit: 'Unité' },
+  { id: '6', code: 'PRD-006', name: 'Jus d’Orange Pure 1L', category: 'Boissons', price: 1100, cost: 750, stock: 48, minStock: 15, unit: 'Bouteille' },
+  { id: '7', code: 'PRD-007', name: 'Lessive Poudre 1kg', category: 'Entretien', price: 1800, cost: 1300, stock: 32, minStock: 10, unit: 'Sachet' },
+  { id: '8', code: 'PRD-008', name: 'Pâtes Spaghettis 500g', category: 'Alimentation', price: 600, cost: 400, stock: 95, minStock: 30, unit: 'Paquet' },
+  { id: '9', code: 'PRD-009', name: 'Eau Minérale 1.5L (Pack x6)', category: 'Boissons', price: 2200, cost: 1500, stock: 120, minStock: 25, unit: 'Pack' },
+  { id: '10', code: 'PRD-010', name: 'Café Moulu 250g', category: 'Alimentation', price: 1700, cost: 1200, stock: 3, minStock: 15, unit: 'Boîte' },
+  { id: '11', code: 'PRD-011', name: 'Papier Hygiénique (Pack x12)', category: 'Hygiène', price: 2500, cost: 1800, stock: 0, minStock: 10, unit: 'Pack' },
+  { id: '12', code: 'PRD-012', name: 'Dentifrice Fluor 100ml', category: 'Hygiène', price: 850, cost: 550, stock: 64, minStock: 15, unit: 'Tube' },
+  { id: '13', code: 'PRD-013', name: 'Sardines à l’huile 125g', category: 'Alimentation', price: 500, cost: 350, stock: 110, minStock: 40, unit: 'Boîte' },
+  { id: '14', code: 'PRD-014', name: 'Biscuits au Chocolat 200g', category: 'Alimentation', price: 750, cost: 500, stock: 52, minStock: 20, unit: 'Paquet' },
 ];
 
 const initialClients: Client[] = [
@@ -241,7 +243,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem('carrefour_auth') !== 'false';
+    return localStorage.getItem('carrefour_auth') === 'true';
   });
   const [currentUser, setCurrentUser] = useState<{ name: string; email: string; role: string; code?: string } | null>(() => {
     const saved = localStorage.getItem('carrefour_user');
@@ -263,45 +265,71 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [globalSearch, setGlobalSearch] = useState<string>('');
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
-  const login = (email: string) => {
-    const cleanInput = email.trim().toLowerCase();
-    const foundEmp = employees.find(
-      (e) => e.email.toLowerCase() === cleanInput || (e.code && e.code.toLowerCase() === cleanInput)
-    );
-
-    let userObj: { name: string; email: string; role: string; code?: string };
-    if (foundEmp) {
-      userObj = {
-        name: foundEmp.name,
-        email: foundEmp.email,
-        role: foundEmp.role,
-        code: foundEmp.code,
-      };
-    } else {
-      const cleanName = email.split('@')[0].replace(/[._]/g, ' ');
-      const capitalized = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
-      let derivedRole = 'Vendeur';
-      if (cleanInput.includes('admin')) derivedRole = 'Administrateur';
-      else if (cleanInput.includes('directeur')) derivedRole = 'Directeur';
-      else if (cleanInput.includes('magasinier')) derivedRole = 'Magasinier';
-
-      userObj = {
-        name: capitalized,
-        email: email,
-        role: derivedRole,
-        code: `EMP-${String(employees.length + 1).padStart(3, '0')}`,
-      };
+  // Charge les données métier réelles du backend dans les états du contexte.
+  const chargerDonnees = async () => {
+    try {
+      const d = await loadAllData();
+      setClients(d.clients);
+      setEmployees(d.employees);
+      setSuppliers(d.suppliers);
+      setProducts(d.products);
+      setCategories(d.categories);
+      setSales(d.sales);
+      setPurchases(d.purchases);
+      setPayments(d.payments);
+      setStockMovements(d.stockMovements);
+    } catch {
+      // Si le backend ne répond pas, on conserve les données d'exemple.
     }
+  };
+
+  // Au premier montage : si une session est déjà ouverte (refresh F5),
+  // on recharge les données depuis le backend.
+  useEffect(() => {
+    if (isAuthenticated) {
+      chargerDonnees();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mappe le poste PostgreSQL (vendeur, magasinier, directeur, administrateur)
+  // vers le nom de rôle affiché dans l'interface.
+  const mapRole = (poste: string): string => {
+    const roles: Record<string, string> = {
+      administrateur: 'Administrateur',
+      directeur: 'Directeur',
+      magasinier: 'Magasinier',
+      vendeur: 'Vendeur',
+    };
+    return roles[poste?.toLowerCase()] || 'Vendeur';
+  };
+
+  const login = async (email: string, password: string): Promise<void> => {
+    // Appel backend réel : POST /api/utilisateurs/login/
+    const data = await loginBackend(email, password);
+    const u = data.utilisateur;
+
+    const userObj = {
+      name: `${u.prenom} ${u.nom}`.trim(),
+      email: u.email,
+      role: mapRole(u.poste),
+      code: `EMP-${String(u.id_employe).padStart(3, '0')}`,
+    };
 
     setCurrentUser(userObj);
     setIsAuthenticated(true);
     localStorage.setItem('carrefour_auth', 'true');
     localStorage.setItem('carrefour_user', JSON.stringify(userObj));
+
+    // Charger les données métier réelles du backend.
+    await chargerDonnees();
   };
 
   const logout = () => {
+    logoutBackend();
     setIsAuthenticated(false);
-    localStorage.setItem('carrefour_auth', 'false');
+    localStorage.removeItem('carrefour_auth');
+    localStorage.removeItem('carrefour_user');
   };
 
   const lowStockProducts = products.filter((p) => p.stock <= p.minStock);

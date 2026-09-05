@@ -57,7 +57,6 @@ export const ActionModals: React.FC = () => {
     stock: '50',
     minStock: '10',
     unit: 'Bouteille',
-    imageUrl: 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?auto=format&fit=crop&q=80&w=400',
   });
   // State for Add Payment
   const [paymentForm, setPaymentForm] = useState({ type: 'Recette' as const, partyName: 'Kouadio Jean', amount: '', method: 'Espèces' as const, notes: '' });
@@ -901,57 +900,10 @@ export const ActionModals: React.FC = () => {
                   stock: Number(productForm.stock) || 50,
                   minStock: Number(productForm.minStock) || 10,
                   unit: productForm.unit,
-                  imageUrl: productForm.imageUrl,
                 });
               }}
               className="p-5 space-y-4 max-h-[80vh] overflow-y-auto"
             >
-              {/* Photo du produit & Prévisualisation */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Photo du produit</label>
-                <div className="flex items-center gap-3">
-                  <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0 shadow-2xs relative">
-                    {productForm.imageUrl ? (
-                      <img
-                        src={productForm.imageUrl}
-                        alt="Aperçu"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs font-bold">
-                        No photo
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 space-y-1.5">
-                    <input
-                      type="url"
-                      placeholder="URL de la photo (https://...)"
-                      value={productForm.imageUrl}
-                      onChange={(e) => setProductForm({ ...productForm, imageUrl: e.target.value })}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs focus:outline-hidden"
-                    />
-                    <div className="flex flex-wrap gap-1 text-[10px] font-semibold text-gray-500">
-                      <span>Exemples :</span>
-                      {[
-                        { label: 'Jus', url: 'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?auto=format&fit=crop&q=80&w=400' },
-                        { label: 'Riz', url: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&q=80&w=400' },
-                        { label: 'Café', url: 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&q=80&w=400' },
-                        { label: 'Savon', url: 'https://images.unsplash.com/photo-1607006344380-b6775a0824a7?auto=format&fit=crop&q=80&w=400' },
-                      ].map((preset) => (
-                        <button
-                          key={preset.label}
-                          type="button"
-                          onClick={() => setProductForm({ ...productForm, imageUrl: preset.url })}
-                          className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-0.5 rounded-md cursor-pointer transition-colors"
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
 
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Nom du produit *</label>
