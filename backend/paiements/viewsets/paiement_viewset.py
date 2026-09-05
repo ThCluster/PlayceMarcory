@@ -3,6 +3,8 @@ from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
+from django.db.models import Case, When, Value, CharField, Subquery, OuterRef
+from django.db.models.expressions import RawSQL
 
 from paiements.models.paiement import Paiement, PaiementClient, PaiementFournisseur
 from paiements.serializers.paiement_serializer import (
@@ -22,8 +24,31 @@ def executer_avec_gestion_erreur(fonction, *args):
 
 class PaiementViewSet(viewsets.ReadOnlyModelViewSet):
     """Consultation de l'historique brut de tous les paiements."""
-    queryset = Paiement.objects.all().order_by("-date_paiement")
     serializer_class = PaiementSerializer
+
+    def get_queryset(self):
+        nom_client = RawSQL(
+            "(SELECT (cl.nom || ' ' || cl.prenom) FROM paiement_client pc "
+            "JOIN clients cl ON cl.id_client = pc.id_client "
+            "WHERE pc.id_paiement = paiements.id_paiement)", []
+        )
+        nom_fournisseur = RawSQL(
+            "(SELECT fo.nom_entreprise FROM paiement_fournisseur pf "
+            "JOIN fournisseurs fo ON fo.id_fournisseur = pf.id_fournisseur "
+            "WHERE pf.id_paiement = paiements.id_paiement)", []
+        )
+        return (
+            Paiement.objects.all()
+            .order_by("-date_paiement")
+            .annotate(
+                tiers_nom=Case(
+                    When(type_paiement='client', then=nom_client),
+                    When(type_paiement='fournisseur', then=nom_fournisseur),
+                    default=Value(''),
+                    output_field=CharField(),
+                )
+            )
+        )
 
 
 class PaiementClientView(APIView):

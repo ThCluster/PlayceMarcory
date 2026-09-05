@@ -7,9 +7,17 @@ MODES_PAIEMENT = ["especes", "carte", "cheque", "virement", "mobile_money"]
 
 
 class PaiementSerializer(serializers.ModelSerializer):
+    tiers = serializers.SerializerMethodField()
+
     class Meta:
         model = Paiement
         fields = "__all__"
+        read_only_fields = ["tiers"]
+
+    def get_tiers(self, obj):
+        """Renvoie le nom du client (recette) ou du fournisseur (dépense)."""
+        # ... remplacé par une résolution basée sur le type côté viewset
+        return getattr(obj, "tiers_nom", "")
 
 
 class PaiementClientSerializer(serializers.ModelSerializer):

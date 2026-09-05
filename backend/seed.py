@@ -117,6 +117,8 @@ def ex(sql, params=None, fetch=True):
 def purge():
     """Purge les tables métier dans l'ordre respectant les clés étrangères."""
     tables = [
+        "historique_prix",
+        "paiement_fournisseur",
         "paiement_client",
         "paiements",
         "ventes",  # déclenche le journal de suppression ; lignes_vente restent
@@ -175,7 +177,7 @@ def creer_clients():
 def creer_employes():
     for (nom, prenom, poste, email) in EMPLOYES:
         try:
-            creer_employe(nom, prenom, poste, email, "motdepasse123", "0700000000")
+            creer_employe(nom, prenom, poste, email, "demo1234", "0700000000")
         except Exception:
             # email déjà présent -> on passe
             pass
@@ -317,6 +319,101 @@ def creer_achats():
     return nb
 
 
+def creer_historique_prix():
+    """Peuple la table historique_prix (auparavant vide). Deux mécanismes :
+    1) modifier_produit() déclenche le trigger trg_historique_prix qui
+       enregistre l'anciennouveau prix ;
+    2) insertion directe de lignes rétroactives (date_modification dans le
+       passé + modifie_par) pour un historique de démonstration riche."""
+    maintenant = timezone.now()
+
+    # 1) vrais changements de prix via le trigger PostgreSQL
+    with connection.cursor() as cur:
+        cur.execute("SELECT id_produit FROM produits")
+        ids = [r[0] for r in cur.fetchall()]
+    if ids:
+        for pid in ids[:5]:
+            pa = ex("SELECT prix_achat FROM produits WHERE id_produit=%s", [pid])
+            pv = ex("SELECT prix_vente FROM produits WHERE id_produit=%s", [pid])
+            if pa is not None:
+                ex(
+                    "SELECT modifier_produit(%s, NULL, %s, %s, NULL)",
+                    [pid, round(float(pa) * 1.12, 2), round(float(pv) * 1.15, 2)],
+                )
+
+    # 2) historique rétroactif (modifications de prix sur les derniers mois)
+    ex(
+        "INSERT INTO historique_prix (id_produit, ancien_prix_achat, nouveau_prix_achat, "
+        "ancien_prix_vente, nouveau_prix_vente, date_modification, modifie_par) VALUES "
+        "(%s, %s, %s, %s, %s, %s, %s)",
+        [ids[0] if ids else None, 1200, 1300, 1500, 1650, maintenant - timedelta(days=145), "Direction"],
+    )
+    ex(
+        "INSERT INTO historique_prix (id_produit, ancien_prix_achat, nouveau_prix_achat, "
+        "ancien_prix_vente, nouveau_prix_vente, date_modification, modifie_par) VALUES "
+        "(%s, %s, %s, %s, %s, %s, %s)",
+        [ids[1] if len(ids) > 1 else None, 800, 900, 1000, 1150, maintenant - timedelta(days=100), "Direction"],
+    )
+    ex(
+        "INSERT INTO historique_prix (id_produit, ancien_prix_achat, nouveau_prix_achat, "
+        "ancien_prix_vente, nouveau_prix_vente, date_modification, modifie_par) VALUES "
+        "(%s, %s, %s, %s, %s, %s, %s)",
+        [ids[2] if len(ids) > 2 else None, 350, 400, 500, 575, maintenant - timedelta(days=60), "Direction"],
+    )
+    ex(
+        "INSERT INTO historique_prix (id_produit, ancien_prix_achat, nouveau_prix_achat, "
+        "ancien_prix_vente, nouveau_prix_vente, date_modification, modifie_par) VALUES "
+        "(%s, %s, %s, %s, %s, %s, %s)",
+        [ids[3] if len(ids) > 3 else None, 2000, 2150, 2400, 2600, maintenant - timedelta(days=30), "Magasinier"],
+    )
+
+
+def creer_paiements_fournisseurs():
+    """Règle les achats validés en créant des paiements fournisseurs.
+    Utilise la fonction PL/pgSQL enregistrer_paiement_fournisseur qui insère
+    dans paiements (type='fournisseur') et paiement_fournisseur, puis ajuste
+    montant_paye de l'achat. Les dates sont rétroactives (après l'achat)."""
+    random.seed(11)
+    with connection.cursor() as cur:
+        cur.execute("SELECT id_employe FROM employes")
+        id_employes = [r[0] for r in cur.fetchall()]
+        cur.execute(
+            "SELECT id_achat, date_achat, montant_total FROM achats "
+            "WHERE statut='validee' ORDER BY id_achat"
+        )
+        achats = cur.fetchall()
+    if not (id_employes and achats):
+        print("  -> aucun achat validé ; paiements fournisseurs ignorés")
+        return 0
+
+    nb = 0
+    for (id_achat, date_achat, montant_total) in achats:
+        eid = random.choice(id_employes)
+        mode = random.choice(MODES_PAIEMENT)
+        # paiement complet ou acompte (30 à 100 %)
+        fraction = random.choice([0.5, 0.75, 1.0, 1.0, 0.3])
+        montant = round(float(montant_total) * fraction, 2)
+        try:
+            id_paiement = ex(
+                "SELECT enregistrer_paiement_fournisseur(%s, %s, %s, %s, %s)",
+                [id_achat, montant, mode, eid, f"ACH-PAY-{id_achat:06d}"],
+            )
+            # la date du paiement : aujourd'hui, à des heures plus tardives
+            # que les recettes pour bien figurer en tête du journal
+            heure = timezone.now().replace(hour=random.randint(10, 18),
+                                           minute=random.randint(0, 59),
+                                           second=random.randint(0, 59),
+                                           microsecond=0)
+            ex(
+                "UPDATE paiements SET date_paiement=%s WHERE id_paiement=%s",
+                [heure, id_paiement],
+            )
+            nb += 1
+        except Exception as e:
+            print(f"  -> échec paiement fournisseur achat {id_achat}: {e}")
+    return nb
+
+
 def main():
     print("=== Génération des données de démonstration ===")
     print("[étape 1] Purge des données existantes ...")
@@ -337,13 +434,17 @@ def main():
     nb_ventes = creer_ventes_et_paiements()
     print("[étape 9] Achats fournisseurs ...")
     nb_achats = creer_achats()
+    print("[étape 10] Historique des prix ...")
+    creer_historique_prix()
+    print("[étape 11] Paiements fournisseurs ...")
+    nb_paiements_fournisseurs = creer_paiements_fournisseurs()
 
     print("\n=== Récapitulatif ===")
     with connection.cursor() as cur:
-        for t in ["categories", "produits", "fournisseurs", "clients", "employes", "ventes", "achats", "lignes_vente", "lignes_achat", "paiements"]:
+        for t in ["categories", "produits", "fournisseurs", "clients", "employes", "ventes", "achats", "lignes_vente", "lignes_achat", "paiements", "paiement_fournisseur", "historique_prix"]:
             cur.execute(f"SELECT COUNT(*) FROM {t}")
             print(f"  {t}: {cur.fetchone()[0]}")
-    print(f"  ventes validées: {nb_ventes} | achats créés: {nb_achats}")
+    print(f"  ventes validées: {nb_ventes} | achats créés: {nb_achats} | paiements fournisseurs: {nb_paiements_fournisseurs}")
 
 
 if __name__ == "__main__":
