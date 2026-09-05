@@ -4,6 +4,11 @@ from fournisseurs.models.fournisseur import Fournisseur
 
 
 class FournisseurSerializer(serializers.ModelSerializer):
+    # Volume total d'achats (somme des montants des achats) auprès de ce
+    # fournisseur. Calculé dans le viewset via une annotation (get_total_achats)
+    # pour éviter une requête par fournisseur. Source : table « achats ».
+    total_achats = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+
     class Meta:
         model = Fournisseur
         fields = "__all__"

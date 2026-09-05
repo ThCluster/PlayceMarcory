@@ -1,4 +1,21 @@
 # -*- coding: utf-8 -*-
+# ============================================================
+# VIEWSET — PAIEMENTS
+# ============================================================
+# Rôle : d'une part consulter l'historique de tous les paiements (avec le
+# nom du tiers : client ou fournisseur) ; d'autre part, enregistrer un
+# paiement client (règlement d'une vente) ou fournisseur (règlement d'un
+# achat).
+#
+# Architecture : la lecture passe par l'ORM avec une annotation SQL dédiée
+# qui récupère le nom du tiers selon le type de paiement. L'enregistrement
+# d'un paiement passe par des fonctions PostgreSQL
+# (enregistrer_paiement_client / enregistrer_paiement_fournisseur) qui
+# vérifient les montants, mettent à jour le « reste à payer » et lèvent
+# une erreur si le montant dépasse la dette.
+#
+# Permissions : un Vendeur encaisse les paiements clients (EstVendeur),
+# un Magasinier enregistre les paiements fournisseurs (EstMagasinier).
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -16,6 +33,8 @@ from comptes.permissions import EstVendeur, EstMagasinier
 
 
 def executer_avec_gestion_erreur(fonction, *args):
+    """Exécute une fonction SQL métier et transforme toute erreur PostgreSQL
+    en erreur de validation API lisible par le frontend."""
     try:
         return fonction(*args)
     except Exception as e:
@@ -23,10 +42,12 @@ def executer_avec_gestion_erreur(fonction, *args):
 
 
 class PaiementViewSet(viewsets.ReadOnlyModelViewSet):
-    """Consultation de l'historique brut de tous les paiements."""
+    """Consultation de l'historique brut de tous les paiements (clients + fournisseurs)."""
     serializer_class = PaiementSerializer
 
     def get_queryset(self):
+        # Sous-requêtes SQL : récupèrent le nom du client ou du fournisseur
+        # associé au paiement, selon son type.
         nom_client = RawSQL(
             "(SELECT (cl.nom || ' ' || cl.prenom) FROM paiement_client pc "
             "JOIN clients cl ON cl.id_client = pc.id_client "
@@ -41,6 +62,7 @@ class PaiementViewSet(viewsets.ReadOnlyModelViewSet):
             Paiement.objects.all()
             .order_by("-date_paiement")
             .annotate(
+                # Colonne calculée « tiers_nom » : nom du tiers selon le type.
                 tiers_nom=Case(
                     When(type_paiement='client', then=nom_client),
                     When(type_paiement='fournisseur', then=nom_fournisseur),
@@ -56,6 +78,8 @@ class PaiementClientView(APIView):
     permission_classes = [EstVendeur]
 
     def post(self, request):
+        """Enregistre un versement client via enregistrer_paiement_client()
+        (ajustement du reste à payer de la vente concernée)."""
         serializer = EnregistrerPaiementClientInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         d = serializer.validated_data
@@ -81,6 +105,8 @@ class PaiementFournisseurView(APIView):
     permission_classes = [EstMagasinier]
 
     def post(self, request):
+        """Enregistre un versement fournisseur via enregistrer_paiement_fournisseur()
+        (ajustement du reste à payer de l'achat concerné)."""
         serializer = EnregistrerPaiementFournisseurInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         d = serializer.validated_data

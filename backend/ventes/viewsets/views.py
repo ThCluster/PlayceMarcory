@@ -1,4 +1,19 @@
 # -*- coding: utf-8 -*-
+# ============================================================
+# VIEWSET — VENTES
+# ============================================================
+# Rôle : gérer le cycle de vie d'une vente : création, ajout/retrait de
+# lignes produits, validation et annulation — puis lecture de la vue
+# « vue_commandes » pour l'affichage.
+#
+# Architecture : la lecture passe par la VUE SQL « vue_commandes » qui
+# calcule déjà montants, restes à payer etc. côté PostgreSQL. Toutes les
+# opérations d'écriture (creer_vente, ajouter_ligne_vente, valider_vente,
+# annuler_vente) sont des fonctions PostgreSQL : elles vérifient le stock,
+# mettent à jour les quantités et créent les mouvements de stock via des
+# triggers — jamais via l'ORM.
+#
+# Permissions : accessible aux vendeurs + admin (EstVendeur).
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -33,6 +48,8 @@ class VenteViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [EstVendeur]
 
     def create(self, request):
+        """Ouvre une nouvelle vente (panier vide) pour un client donné.
+        C'est le vendeur connecté qui encaisse (request.user.id_employe)."""
         serializer = CreerVenteInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -45,11 +62,14 @@ class VenteViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["get"])
     def lignes(self, request, pk=None):
+        """Retourne les lignes (produits + quantités) d'une vente."""
         lignes = LigneVente.objects.filter(id_vente=pk)
         return Response(LigneVenteSerializer(lignes, many=True).data)
 
     @action(detail=True, methods=["post"])
     def ajouter_ligne(self, request, pk=None):
+        """Ajoute un produit à la vente ; la fonction SQL vérifie le stock
+        disponible et recalcule les montants."""
         serializer = AjouterLigneInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -63,16 +83,20 @@ class VenteViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["delete"], url_path="lignes/(?P<id_ligne>[^/.]+)")
     def retirer_ligne(self, request, pk=None, id_ligne=None):
+        """Retire une ligne du panier et remet le stock en place."""
         executer_avec_gestion_erreur(retirer_ligne_vente, id_ligne)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["post"])
     def valider(self, request, pk=None):
+        """Valide (clôture) la vente : le stock est définitivement déduit
+        et la vente devient « validee » (comptabilisée dans le CA)."""
         executer_avec_gestion_erreur(valider_vente, pk)
         return Response({"detail": "Vente validée."})
 
     @action(detail=True, methods=["post"])
     def annuler(self, request, pk=None):
+        """Annule une vente non encore validée (réinitialise le panier)."""
         executer_avec_gestion_erreur(annuler_vente, pk)
         return Response({"detail": "Vente annulée."})
 
