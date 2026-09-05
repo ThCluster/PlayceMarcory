@@ -70,7 +70,14 @@ async function request(path: string, options: RequestInit = {}, withAuth = true)
     }
   }
 
-  const response = await fetch(`/api${path}`, { ...options, headers });
+  const response = await fetch(`/api${path}`, {
+    ...options,
+    headers,
+    // On désactive le cache HTTP du navigateur pour les appels API :
+    // évite d'afficher d'anciennes réponses (ex. total_achats à 0) après
+    // un correctif backend, puis qu'elles « reviennent » au rechargement.
+    cache: 'no-store',
+  });
 
   // Si le token a expiré (401) et qu'un refresh existe, on tente de le renouveler une fois.
   if (response.status === 401 && withAuth && tokens.getRefresh()) {
