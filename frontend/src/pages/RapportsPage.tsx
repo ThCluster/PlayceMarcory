@@ -9,9 +9,9 @@ export const RapportsPage: React.FC = () => {
 
   const reportTemplates = [
     { title: 'Rapport Journalier des Caisses', desc: 'Synthèse des recettes, espèces, Orange Money, Wave et encaissements.', date: 'Mis à jour quotidiennement', category: 'Caisses' },
-    { title: 'Bilan Mensuel des Ventes & Marges', desc: 'Ventilation par catégorie de produit, marges bénéficiaires et taux de rotation.', date: 'Mai 2024', category: 'Finances' },
-    { title: 'État des Stocks & Valorisation Global', desc: 'Inventaire complet, valeur financière globale du stock et seuils critiques.', date: '29 Mai 2024', category: 'Stocks' },
-    { title: 'Rapport d’Achats & Fournisseurs', desc: 'Détail des réapprovisionnements, factures fournisseurs et volumes reçus.', date: 'Mai 2024', category: 'Achats' },
+    { title: 'Bilan Mensuel des Ventes & Marges', desc: 'Ventilation par catégorie de produit, marges bénéficiaires et taux de rotation.', date: 'Septembre 2026', category: 'Finances' },
+    { title: 'État des Stocks & Valorisation Global', desc: 'Inventaire complet, valeur financière globale du stock et seuils critiques.', date: '05 Septembre 2026', category: 'Stocks' },
+    { title: 'Rapport d’Achats & Fournisseurs', desc: 'Détail des réapprovisionnements, factures fournisseurs et volumes reçus.', date: 'Septembre 2026', category: 'Achats' },
     { title: 'Audit de Solvabilité & Encaissements', desc: 'Ventilation des modes de paiement et rapprochements comptables.', date: 'Hebdomadaire', category: 'Finances' },
     { title: 'Bilan de Fréquentation & Clients Fidèles', desc: 'Statistiques sur les transactions enregistrées et paniers moyens.', date: 'Mensuel', category: 'Ventes' },
   ];

@@ -60,6 +60,8 @@ export const ActionModals: React.FC = () => {
   });
   // State for Add Payment
   const [paymentForm, setPaymentForm] = useState({ type: 'Recette' as const, partyName: 'Kouadio Jean', amount: '', method: 'Espèces' as const, notes: '' });
+  const [paymentVenteId, setPaymentVenteId] = useState('');
+  const [paymentAchatId, setPaymentAchatId] = useState('');
   // State for Add Supplier
   const [supplierForm, setSupplierForm] = useState({ name: '', contact: '', phone: '', email: '', address: '' });
   // State for Add Category
@@ -335,6 +337,7 @@ export const ActionModals: React.FC = () => {
                 const totalQty = saleItems.reduce((sum, item) => sum + item.quantity, 0);
 
                 addSale({
+                  clientId: saleClient !== 'Client de passage' ? (clients.find((c) => c.name === saleClient)?.id) : undefined,
                   clientName: saleClient,
                   vendeuseName: saleVendeuse,
                   amount: totalAmount,
@@ -1023,12 +1026,17 @@ export const ActionModals: React.FC = () => {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
+                const isRecette = paymentForm.type === 'Recette';
                 addPayment({
                   type: paymentForm.type,
-                  partyName: paymentForm.partyName,
-                  amount: Number(paymentForm.amount) || 100000,
+                  partyName: isRecette
+                    ? (sales.find((s) => s.id === paymentVenteId)?.clientName || '')
+                    : (purchases.find((p) => p.id === paymentAchatId)?.fournisseur || ''),
+                  amount: Number(paymentForm.amount) || 0,
                   method: paymentForm.method,
                   notes: paymentForm.notes || 'Règlement divers',
+                  id_vente: isRecette ? Number(paymentVenteId) || undefined : undefined,
+                  id_achat: isRecette ? undefined : Number(paymentAchatId) || undefined,
                 });
               }}
               className="p-5 space-y-4"
@@ -1057,15 +1065,38 @@ export const ActionModals: React.FC = () => {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Nom du tiers / Facture</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="ex: Kouadio Jean"
-                  value={paymentForm.partyName}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, partyName: e.target.value })}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                />
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  {paymentForm.type === 'Recette' ? 'Sélectionner la vente (client) à régler' : 'Sélectionner l’achat (fournisseur) à régler'}
+                </label>
+                {paymentForm.type === 'Recette' ? (
+                  <select
+                    required
+                    value={paymentVenteId}
+                    onChange={(e) => setPaymentVenteId(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="">-- Choisir une vente --</option>
+                    {sales.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.facture} — {s.clientName} ({new Intl.NumberFormat('fr-FR').format(s.amount)} FCFA)
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    required
+                    value={paymentAchatId}
+                    onChange={(e) => setPaymentAchatId(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="">-- Choisir un achat --</option>
+                    {purchases.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.facture} — {p.fournisseur} ({new Intl.NumberFormat('fr-FR').format(p.amount)} FCFA)
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

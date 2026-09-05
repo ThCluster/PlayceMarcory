@@ -13,7 +13,7 @@ import {
 import { useApp } from '../context/AppContext';
 
 export const StatistiquesPage: React.FC = () => {
-  const { sales, purchases, products, clients } = useApp();
+  const { sales, purchases, products, clients, salesByProduct } = useApp();
 
   const totalSalesCA = sales.reduce((sum, s) => sum + s.amount, 0);
   const totalAchats = purchases.reduce((sum, p) => sum + p.amount, 0);
@@ -28,11 +28,8 @@ export const StatistiquesPage: React.FC = () => {
 
   // Aggregate real product sales
   const productQtyMap = new Map<string, number>();
-  sales.forEach((s) => {
-    (s.items || []).forEach((item) => {
-      const current = productQtyMap.get(item.productName) || 0;
-      productQtyMap.set(item.productName, current + item.quantity);
-    });
+  (salesByProduct || []).forEach((r) => {
+    productQtyMap.set(r.nom, (productQtyMap.get(r.nom) || 0) + r.quantite);
   });
 
   const dynamicTopProducts = Array.from(productQtyMap.entries())

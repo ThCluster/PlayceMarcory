@@ -179,7 +179,7 @@ export async function fetchPurchases(): Promise<Purchase[]> {
       : a.statut === 'en_attente' ? 'En commande'
       : a.statut === 'annulee' ? 'Annulé'
       : 'Reçu') as Purchase['status'],
-    itemsCount: 0,
+    itemsCount: Number(a.articles ?? 0),
   }));
 }
 
@@ -218,6 +218,25 @@ export async function fetchStockMovements(): Promise<StockMovement[]> {
     quantity: Number(s.quantite_mouvement ?? 0),
     author: s.source === 'auto' ? 'Système' : s.source ?? 'Système',
     reason: `${s.type_mouvement ?? ''} (${s.quantite_avant ?? 0} -> ${s.quantite_apres ?? 0})`,
+  }));
+}
+
+// ---- Ventes agrégées par produit (Top produits + répartition catégorie) ----
+export interface SalesByProduct {
+  nom: string;
+  categorie: string;
+  quantite: number;
+  montant: number;
+}
+
+export async function fetchSalesByProduct(): Promise<SalesByProduct[]> {
+  const data: any = await api.get('/ventes/recap-produits/');
+  const list = Array.isArray(data) ? data : data?.results ?? [];
+  return list.map((r: any) => ({
+    nom: r.nom ?? '',
+    categorie: r.categorie ?? 'Autres',
+    quantite: Number(r.quantite ?? 0),
+    montant: Number(r.montant ?? 0),
   }));
 }
 
@@ -263,6 +282,7 @@ export async function loadAllData() {
   const categories = await fetchCategories(productsWithStock);
   const stockMovements = await fetchStockMovements().catch(() => [] as StockMovement[]);
   const purchases = await fetchPurchases();
+  const salesByProduct = await fetchSalesByProduct().catch(() => [] as SalesByProduct[]);
 
   return {
     clients,
@@ -274,5 +294,64 @@ export async function loadAllData() {
     purchases,
     payments,
     stockMovements,
+    salesByProduct,
   };
+}
+
+// ---------------------------------------------------------------------
+// ÉCRITURES (connexion au backend) — chaque action appelle le backend.
+// ---------------------------------------------------------------------
+
+export async function creerClient(input: {
+  nom: string; prenom: string; telephone?: string; email?: string; adresse?: string;
+}): Promise<any> {
+  return api.post('/clients/', input);
+}
+
+export async function creerVente(idClient: number): Promise<{ id_vente: number }> {
+  return api.post('/ventes/', { id_client: idClient });
+}
+
+export async function ajouterLigneVente(idVente: number, idProduit: number, quantite: number): Promise<any> {
+  return api.post(`/ventes/${idVente}/ajouter_ligne/`, { id_produit: idProduit, quantite });
+}
+
+export async function validerVente(idVente: number): Promise<any> {
+  return api.post(`/ventes/${idVente}/valider/`);
+}
+
+export async function creerProduit(input: {
+  id_categorie: number; nom: string; prix_achat: number; prix_vente: number;
+  seuil_alerte?: number; code_barre?: string; unite_mesure?: string;
+}): Promise<any> {
+  return api.post('/produits/', input);
+}
+
+export interface CategorieRef {
+  id_categorie: number;
+  nom: string;
+}
+
+export async function fetchCategoriesBackend(): Promise<CategorieRef[]> {
+  const data: any = await api.get('/produits/categories/');
+  const list = Array.isArray(data) ? data : data?.results ?? [];
+  return list.map((c: any) => ({ id_categorie: Number(c.id_categorie), nom: c.nom }));
+}
+
+export async function creerFournisseur(input: {
+  nom_entreprise: string; contact_nom?: string; telephone?: string; email?: string; adresse?: string;
+}): Promise<any> {
+  return api.post('/fournisseurs/', input);
+}
+
+export async function enregistrerPaiementClient(input: {
+  id_vente: number; montant: number; mode_paiement: string; reference_externe?: string;
+}): Promise<{ id_paiement: number }> {
+  return api.post('/paiements/clients/', input);
+}
+
+export async function enregistrerPaiementFournisseur(input: {
+  id_achat: number; montant: number; mode_paiement: string; reference_externe?: string;
+}): Promise<{ id_paiement: number }> {
+  return api.post('/paiements/fournisseurs/', input);
 }

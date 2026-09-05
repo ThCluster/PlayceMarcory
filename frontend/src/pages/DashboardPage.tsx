@@ -43,6 +43,7 @@ export const DashboardPage: React.FC = () => {
     purchases,
     products,
     clients,
+    salesByProduct,
     dateRange,
     setDateRange,
     openModal,
@@ -81,21 +82,15 @@ export const DashboardPage: React.FC = () => {
   const averageBasketValue = totalSalesCount > 0 ? Math.round(totalSalesRevenue / totalSalesCount) : 0;
   const totalPurchasesAmount = purchases.reduce((sum, p) => sum + p.amount, 0);
 
-  // Top 10 Products with calculated sales volume and revenue from actual sales items
+  // Top 10 Products with calculated sales volume and revenue from actual sales
   const productSalesMap = new Map<string, { qty: number; revenue: number }>();
-  sales.forEach((s) => {
-    (s.items || []).forEach((item) => {
-      const current = productSalesMap.get(item.productId) || { qty: 0, revenue: 0 };
-      productSalesMap.set(item.productId, {
-        qty: current.qty + item.quantity,
-        revenue: current.revenue + item.subtotal,
-      });
-    });
+  (salesByProduct || []).forEach((r) => {
+    productSalesMap.set(r.nom, { qty: r.quantite, revenue: r.montant });
   });
 
   const top10Products = [...products]
     .map((p) => {
-      const stats = productSalesMap.get(p.id) || { qty: 0, revenue: 0 };
+      const stats = productSalesMap.get(p.name) || { qty: 0, revenue: 0 };
       return {
         ...p,
         unitsSold: stats.qty,
@@ -135,14 +130,11 @@ export const DashboardPage: React.FC = () => {
     qty: dayStatsMap[d].qty,
   }));
 
-  // Dynamic Category Sales Data calculated from actual sales and products
+  // Dynamic Category Sales Data calculated from actual sales by product
   const categoryRevenueMap: { [cat: string]: number } = {};
-  sales.forEach((s) => {
-    (s.items || []).forEach((item) => {
-      const prod = products.find((p) => p.id === item.productId || p.name === item.productName);
-      const catName = prod?.category || 'Autres';
-      categoryRevenueMap[catName] = (categoryRevenueMap[catName] || 0) + item.subtotal;
-    });
+  (salesByProduct || []).forEach((r) => {
+    const catName = r.categorie || 'Autres';
+    categoryRevenueMap[catName] = (categoryRevenueMap[catName] || 0) + r.montant;
   });
 
   const catColors: { [key: string]: string } = {

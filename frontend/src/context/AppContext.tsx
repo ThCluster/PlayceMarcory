@@ -12,7 +12,21 @@ import {
   NotificationItem,
 } from '../types';
 import { loginBackend, logoutBackend } from '../api/client';
-import { loadAllData } from '../api/services';
+import {
+  loadAllData, SalesByProduct, creerClient, fetchCategoriesBackend, creerProduit,
+  creerFournisseur, creerVente, ajouterLigneVente, validerVente, enregistrerPaiementClient,
+  enregistrerPaiementFournisseur,
+} from '../api/services';
+
+// Convertit le mode de paiement frontend vers la valeur attendue par le backend.
+const mapModeBackend = (m: string): string => {
+  const x = m?.toLowerCase() ?? '';
+  if (x.includes('carte')) return 'carte';
+  if (x.includes('wave')) return 'mobile_money';
+  if (x.includes('orange') || x.includes('momo')) return 'mobile_money';
+  if (x.includes('moov')) return 'mobile_money';
+  return 'especes';
+};
 
 interface AppContextType {
   // Auth
@@ -30,8 +44,10 @@ interface AppContextType {
   suppliers: Supplier[];
   employees: Employee[];
   categories: Category[];
+  categoriesBackend: { id_categorie: number; nom: string }[];
   payments: PaymentRecord[];
   stockMovements: StockMovement[];
+  salesByProduct: SalesByProduct[];
   notifications: NotificationItem[];
   
   // Active date filter
@@ -59,7 +75,7 @@ interface AppContextType {
   deleteSupplier: (id: string) => void;
   addCategory: (category: Omit<Category, 'id' | 'revenue' | 'productCount'>) => void;
   deleteCategory: (id: string) => void;
-  addPayment: (payment: Omit<PaymentRecord, 'id' | 'reference' | 'date'>) => void;
+  addPayment: (payment: Omit<PaymentRecord, 'id' | 'reference' | 'date'> & { id_vente?: number; id_achat?: number }) => void;
   adjustStock: (productId: string, newStock: number, reason: string) => void;
   markNotificationRead: (id: string) => void;
 }
@@ -259,25 +275,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [payments, setPayments] = useState<PaymentRecord[]>(initialPayments);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(initialStockMovements);
+  const [salesByProduct, setSalesByProduct] = useState<SalesByProduct[]>([]);
+  const [categoriesBackend, setCategoriesBackend] = useState<{ id_categorie: number; nom: string }[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications);
 
   const [dateRange, setDateRange] = useState<string>('Mercredi 29 Mai 2024');
   const [globalSearch, setGlobalSearch] = useState<string>('');
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
+  // Construit réellement les notifications à partir des données chargées :
+  // alertes de stock, dernières ventes et achats.
+  const buildNotifications = (
+    prods: Product[],
+    ventes: Sale[],
+    achats: Purchase[]
+  ): NotificationItem[] => {
+    const items: NotificationItem[] = [];
+
+    const alerts = prods.filter((p) => p.stock <= p.minStock);
+    alerts.slice(0, 5).forEach((p, i) => {
+      items.push({
+        id: `stock-${i}`,
+        title: p.stock === 0 ? 'Rupture de stock' : 'Alerte Stock Faible',
+        message: `${p.name} a atteint ${p.stock} ${p.unit}(s) (seuil : ${p.minStock}).`,
+        time: 'À surveiller',
+        read: false,
+        type: 'warning',
+      });
+    });
+
+    ventes.slice(0, 3).forEach((s, i) => {
+      items.push({
+        id: `sale-${i}`,
+        title: 'Nouvelle vente',
+        message: `Vente ${s.facture} de ${new Intl.NumberFormat('fr-FR').format(s.amount)} FCFA enregistrée.`,
+        time: s.date ? s.date : 'Récemment',
+        read: false,
+        type: 'success',
+      });
+    });
+
+    achats.filter((a) => a.status === 'Reçu').slice(0, 3).forEach((a, i) => {
+      items.push({
+        id: `achat-${i}`,
+        title: 'Livraison reçue',
+        message: `Commande ${a.facture} de ${a.fournisseur} réceptionnée (${a.itemsCount} article(s)).`,
+        time: a.date ? a.date : 'Récemment',
+        read: false,
+        type: 'info',
+      });
+    });
+
+    return items.slice(0, 8);
+  };
+
+  // Applique les données backend dans tous les états.
+  const appliquerDonnees = async (d: Awaited<ReturnType<typeof loadAllData>>) => {
+    setClients(d.clients);
+    setEmployees(d.employees);
+    setSuppliers(d.suppliers);
+    setProducts(d.products);
+    setCategories(d.categories);
+    setSales(d.sales);
+    setPurchases(d.purchases);
+    setPayments(d.payments);
+    setStockMovements(d.stockMovements);
+    setSalesByProduct(d.salesByProduct || []);
+    setNotifications(buildNotifications(d.products, d.sales, d.purchases));
+    const catsRef = await fetchCategoriesBackend().catch(() => []);
+    setCategoriesBackend(catsRef);
+  };
+
   // Charge les données métier réelles du backend dans les états du contexte.
   const chargerDonnees = async () => {
     try {
       const d = await loadAllData();
-      setClients(d.clients);
-      setEmployees(d.employees);
-      setSuppliers(d.suppliers);
-      setProducts(d.products);
-      setCategories(d.categories);
-      setSales(d.sales);
-      setPurchases(d.purchases);
-      setPayments(d.payments);
-      setStockMovements(d.stockMovements);
+      await appliquerDonnees(d);
     } catch {
       // Si le backend ne répond pas, on conserve les données d'exemple.
     }
@@ -337,86 +410,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const openModal = (modalName: string) => setActiveModal(modalName);
   const closeModal = () => setActiveModal(null);
 
-  const addClient = (clientData: Omit<Client, 'id' | 'code' | 'totalSpent' | 'lastPurchaseDate'>) => {
-    const newId = (clients.length + 1).toString();
-    const newCode = `CLT-${String(clients.length + 1).padStart(3, '0')}`;
-    const newClient: Client = {
-      ...clientData,
-      id: newId,
-      code: newCode,
-      totalSpent: 0,
-      lastPurchaseDate: new Date().toLocaleDateString('fr-FR'),
-    };
-    setClients([newClient, ...clients]);
-    closeModal();
+  const addClient = async (clientData: Omit<Client, 'id' | 'code' | 'totalSpent' | 'lastPurchaseDate'>) => {
+    try {
+      const parts = (clientData.name || '').trim().split(/\s+/);
+      const nom = parts.pop() || clientData.name || '';
+      const prenom = parts.join(' ');
+      await creerClient({
+        nom,
+        prenom,
+        telephone: clientData.phone,
+        email: clientData.email,
+        adresse: clientData.city,
+      });
+      await chargerDonnees();
+    } finally {
+      closeModal();
+    }
   };
 
-  const addSale = (saleData: Omit<Sale, 'id' | 'facture' | 'date' | 'time'>) => {
-    const nextNum = sales.length + 126;
-    const newFacture = `VTE-${String(nextNum).padStart(6, '0')}`;
-    const now = new Date();
-    const dateStr = '29/05/2024';
-    const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-
-    const newSale: Sale = {
-      ...saleData,
-      id: String(sales.length + 1),
-      facture: newFacture,
-      date: dateStr,
-      time: timeStr,
-      vendeuseName: saleData.vendeuseName || currentUser?.name || 'Marie Kassi',
-      items: saleData.items || [],
-      itemsCount: saleData.items && saleData.items.length > 0
-        ? saleData.items.reduce((sum, item) => sum + item.quantity, 0)
-        : saleData.itemsCount || 1,
-    };
-
-    setSales((prev) => [newSale, ...prev]);
-
-    // Create linked Payment in Trésorerie
-    if (newSale.status === 'Payée' || newSale.status === 'Partiel') {
-      const newPayRef = `PAY-${String(payments.length + 126).padStart(5, '0')}`;
-      const newPayment: PaymentRecord = {
-        id: String(payments.length + 1),
-        reference: newPayRef,
-        type: 'Recette',
-        partyName: newSale.clientName,
-        amount: newSale.amount,
-        date: dateStr,
-        method: newSale.paymentMethod,
-        notes: `Règlement Facture ${newFacture}`,
-      };
-      setPayments((prev) => [newPayment, ...prev]);
+  const addSale = async (saleData: Omit<Sale, 'id' | 'facture' | 'date' | 'time'>) => {
+    try {
+      const idClient = saleData.clientId ? Number(saleData.clientId) : null;
+      if (!idClient) {
+        throw new Error('Veuillez sélectionner un client existant.');
+      }
+      // 1. Créer la vente
+      const { id_vente } = await creerVente(idClient);
+      // 2. Ajouter les lignes et valider
+      const lignes = saleData.items || [];
+      for (const it of lignes) {
+        const idProd = it.productId ? Number(it.productId) : null;
+        if (idProd) {
+          await ajouterLigneVente(id_vente, idProd, it.quantity);
+        }
+      }
+      await validerVente(id_vente);
+      // 3. Encaisser si la vente est payée
+      if (saleData.status === 'Payée' || saleData.status === 'Partiel') {
+        await enregistrerPaiementClient({
+          id_vente,
+          montant: saleData.amount,
+          mode_paiement: mapModeBackend(saleData.paymentMethod),
+          reference_externe: null as any,
+        });
+      }
+      // 4. Recharger les données
+      const d = await loadAllData();
+      appliquerDonnees(d);
+    } catch (err) {
+      console.error('addSale error', err);
+    } finally {
+      closeModal();
     }
-
-    // Adjust product inventory stock & create stock movements
-    if (saleData.items && saleData.items.length > 0) {
-      setProducts((prevProducts) =>
-        prevProducts.map((p) => {
-          const soldItem = saleData.items.find(
-            (it) => it.productId === p.id || it.productName.toLowerCase() === p.name.toLowerCase()
-          );
-          if (soldItem) {
-            const updatedStock = Math.max(0, p.stock - soldItem.quantity);
-            return { ...p, stock: updatedStock };
-          }
-          return p;
-        })
-      );
-
-      const newMovements: StockMovement[] = saleData.items.map((it, idx) => ({
-        id: String(stockMovements.length + idx + 1),
-        date: `${dateStr} ${timeStr}`,
-        productName: it.productName,
-        type: 'Sortie',
-        quantity: it.quantity,
-        author: saleData.vendeuseName || currentUser?.name || 'Marie Kassi',
-        reason: `Vente ${newFacture} (${newSale.clientName})`,
-      }));
-      setStockMovements((prev) => [...newMovements, ...prev]);
-    }
-
-    closeModal();
   };
 
   const addPurchase = (purchaseData: Omit<Purchase, 'id' | 'facture' | 'date'>) => {
@@ -432,15 +477,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     closeModal();
   };
 
-  const addProduct = (productData: Omit<Product, 'id' | 'code'>) => {
-    const newCode = `PRD-${String(products.length + 1).padStart(3, '0')}`;
-    const newProduct: Product = {
-      ...productData,
-      id: String(products.length + 1),
-      code: newCode,
-    };
-    setProducts([newProduct, ...products]);
-    closeModal();
+  const addProduct = async (productData: Omit<Product, 'id' | 'code'>) => {
+    try {
+      const cat = categoriesBackend.find((c) => c.nom === productData.category);
+      await creerProduit({
+        id_categorie: cat ? cat.id_categorie : 50,
+        nom: productData.name,
+        prix_achat: productData.cost,
+        prix_vente: productData.price,
+        seuil_alerte: productData.minStock,
+        unite_mesure: productData.unit,
+      });
+      await chargerDonnees();
+    } finally {
+      closeModal();
+    }
   };
 
   const addEmployee = (empData: Omit<Employee, 'id' | 'code'>) => {
@@ -464,16 +515,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setEmployees((prev) => prev.filter((e) => e.id !== id));
   };
 
-  const addSupplier = (supplierData: Omit<Supplier, 'id' | 'code' | 'totalPurchases'>) => {
-    const newCode = `FRS-${String(suppliers.length + 1).padStart(3, '0')}`;
-    const newSupplier: Supplier = {
-      ...supplierData,
-      id: String(suppliers.length + 1),
-      code: newCode,
-      totalPurchases: 0,
-    };
-    setSuppliers([newSupplier, ...suppliers]);
-    closeModal();
+  const addSupplier = async (supplierData: Omit<Supplier, 'id' | 'code' | 'totalPurchases'>) => {
+    try {
+      await creerFournisseur({
+        nom_entreprise: supplierData.name,
+        contact_nom: supplierData.contact,
+        telephone: supplierData.phone,
+        email: supplierData.email,
+        adresse: supplierData.address,
+      });
+      await chargerDonnees();
+    } finally {
+      closeModal();
+    }
   };
 
   const deleteSupplier = (id: string) => {
@@ -495,16 +549,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCategories((prev) => prev.filter((c) => c.id !== id));
   };
 
-  const addPayment = (paymentData: Omit<PaymentRecord, 'id' | 'reference' | 'date'>) => {
-    const newRef = `PAY-${String(payments.length + 126).padStart(5, '0')}`;
-    const newPay: PaymentRecord = {
-      ...paymentData,
-      id: String(payments.length + 1),
-      reference: newRef,
-      date: '29/05/2024',
-    };
-    setPayments([newPay, ...payments]);
-    closeModal();
+  const addPayment = async (paymentData: Omit<PaymentRecord, 'id' | 'reference' | 'date'> & { id_vente?: number; id_achat?: number }) => {
+    try {
+      const idVente = paymentData.id_vente;
+      const idAchat = paymentData.id_achat;
+      if (paymentData.type === 'Recette' && idVente) {
+        await enregistrerPaiementClient({
+          id_vente: idVente,
+          montant: paymentData.amount,
+          mode_paiement: mapModeBackend(paymentData.method),
+        });
+      } else if (paymentData.type === 'Dépense' && idAchat) {
+        await enregistrerPaiementFournisseur({
+          id_achat: idAchat,
+          montant: paymentData.amount,
+          mode_paiement: mapModeBackend(paymentData.method),
+        });
+      } else {
+        throw new Error('Sélectionnez une vente ou un achat à régler.');
+      }
+      const d = await loadAllData();
+      await appliquerDonnees(d);
+    } catch (err) {
+      console.error('addPayment error', err);
+    } finally {
+      closeModal();
+    }
   };
 
   const adjustStock = (productId: string, newStock: number, reason: string) => {
@@ -551,8 +621,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         suppliers,
         employees,
         categories,
+        categoriesBackend,
         payments,
         stockMovements,
+        salesByProduct,
         notifications,
         dateRange,
         setDateRange,
