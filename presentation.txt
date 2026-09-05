@@ -1,0 +1,331 @@
+================================================================
+ PLAYCEMARCORY - PRESENTATION DE LA PLATEFORME
+ Gestion de Supermarché : Stock, Ventes, Achats, Paiements
+================================================================
+
+Ce document explique le fonctionnement de la plateforme : les
+différents rôles (employés), ce que chacun peut faire, le flux global
+de l'application et la logique (pourquoi une permission, qui gère quoi).
+
+----------------------------------------------------------------
+1. LES 5 COMPTES DE CONNEXION (mot de passe commun : demo1234)
+----------------------------------------------------------------
+  ROLE               EMAIL
+  ----------------   --------------------------------------------
+  Administrateur     admin@supermarche.com
+  Directeur          aminata.diallo@supermarche.com
+  Magasinier         marie.kouassi@supermarche.com
+  Vendeur            fatou.ouattara@supermarche.com
+  Vendeur            ibrahim.kone@supermarche.com
+
+La connexion est gérée par le backend (Django, JWT) via
+`/api/utilisateurs/login/`. Chaque employé est stocké dans la table
+`employes` avec son poste. Le mot de passe est haché en base
+(crypt bcrypt).
+
+----------------------------------------------------------------
+2. LE FLUX DE CONNEXION (étape par étape)
+----------------------------------------------------------------
+ 1. SAISIE
+    L'employé renseigne son EMAIL + son MOT DE PASSE sur la page de
+    connexion (ex. admin@supermarche.com / demo1234).
+
+ 2. VÉRIFICATION (backend)
+    Le backend (Django) reçoit la requête POST `/api/utilisateurs/login/`.
+    Il cherche l'employé par email dans la table `employes` puis
+    compare le mot de passe saisi au hachage stocké (crypt bcrypt).
+    Si l'email n'existe pas ou si le mot de passe est faux -> erreur
+    « identifiants invalides ».
+
+ 3. DÉLIVRANCE D'UN JETON (JWT)
+    Si les identifiants sont corrects, le backend renvoie :
+      - un jeton d'ACCÈS (access) : identifie l'employé et son rôle,
+        valable pour chaque requête API ;
+      - un jeton de RAFRAÎCHISSEMENT (refresh) : permet de renouveler
+        l'access quand il expire, sans redemander le mot de passe.
+
+ 4. CHARGEMENT DU PROFIL (rôle)
+    Le frontend lit le POSTE de l'employé (administrateur, directeur,
+    magasinier, vendeur) et construit son profil.
+
+ 5. ADAPTATION DE L'INTERFACE
+    Le menu, les boutons et les écrans se filtrent selon le rôle
+    (voir section 7). Le token est envoyé à CHAQUE appel API pour
+    que le backend vérifie les permissions.
+
+ 6. PROTECTION DES ROUTES
+    Chaque appel API vérifie le jeton + le rôle (permissions EstX).
+    Un utilisateur non autorisé reçoit une erreur 403 même s'il
+    force l'URL d'un écran.
+
+  POURQUOI ce mécanisme ?
+    - Sécurité : le mot de passe n'est jamais transmis en clair ni
+      stocké (hachage bcrypt + jetons).
+    - Sessions sans état : le serveur n'a pas besoin de "se souvenir"
+      de l'utilisateur, le jeton porte toutes les infos.
+    - Contrôle d'accès : le rôle est vérifié à CHAQUE requête, donc
+      un vendeur ne peut pas, même en forçant l'URL, accéder aux
+      statistiques du directeur.
+
+----------------------------------------------------------------
+3. LES ROLES ET LE BUT DE CHAQUE ACTEUR
+----------------------------------------------------------------
+
+-------------------------------------------------
+3.1 ADMINISTRATEUR
+-------------------------------------------------
+  BUT : administrer et superviser toute la plateforme (super pouvoir).
+  Son but est de garder le contrôle global : corriger les prix,
+  gérer les employés, surveiller la trésorerie et intervenir partout
+  quand un autre rôle est limité.
+  Statut : rôle "super pouvoir". L'administrateur est dans la
+  liste autorisee de TOUTES les permissions. Il peut donc TOUT faire :
+    - tout voir et tout gérer
+    - remplacer n'importe quel rôle
+  Les modules accessibles sont tous les menus de l'application.
+
+  L'administrateur est le "controleur general" : il surveille et
+  peut intervenir sur la trésorerie, les stocks, les ventes, les
+  achats, les employés et les statistiques.
+
+-------------------------------------------------
+3.2 DIRECTEUR (aminata.diallo)
+-------------------------------------------------
+  BUT : piloter la performance et les décisions stratégiques.
+  Son but est d'analyser (statistiques, rapports) et de valider les
+  grosses dépenses (achats fournisseurs) pour maximiser les profits.
+  Permission : EstDirecteur  -> postes autorisés : directeur, admin
+  Modules dédiés :
+    - STATISTIQUES (tableau de bord analytique)
+        * chiffre d'affaires
+        * nombre de commandes
+        * meilleur client
+        * meilleur produit
+    - RAPPORTS
+    - ACHATS fournisseurs (création / approbation / suivi des
+      réapprovisionnements) -> les achats utilisent `EstAchats`
+      (directeur + magasinier + admin).
+
+  Pourquoi : le directeur pilote la performance et la trésorerie. Il
+  crée/valide les bons d'achat fournisseurs (grosses dépenses) et
+  consulte les indicateurs commerciaux. Il ne gère pas au quotidien
+  la caisse ; il décide et analyse.
+
+-------------------------------------------------
+3.3 MAGASINIER (marie.kouassi)
+-------------------------------------------------
+  BUT : garantir l'exactitude des stocks et de la marchandise.
+  Son but est de suivre les entrées/sorties, vérifier les livraisons
+  et alerter sur les ruptures pour que le rayon ne manque jamais.
+  Permission : EstMagasinier -> postes autorisés : magasinier, admin
+  Modules dédiés :
+    - STOCKS
+        * état du stock actuel
+        * historique des mouvements de stock (entrées / sorties)
+    - FOURNISSEURS (gestion du carnet fournisseurs)
+    - MOUVEMENTS de stock (endpoint `/api/mouvements-stock/`)
+    - PAIEMENTS FOURNISSEURS (règlement des achats)
+    - ACHATS fournisseurs (consultation / contrôle des bon de commande
+      - lecture seule pour le magasinier)
+
+  Pourquoi : le magasinier gère la marchandise physique. Il suit les
+  entrées (réceptions de commandes) et les sorties (ventes), met à
+  jour les quantités et alerte quand un produit atteint le seuil.
+  Il contrôle la marchandise reçue et consulte les bons d'achat.
+  Autoriser le magasinier sur les mouvements de stock assure la
+  traçabilité exacte des quantités.
+
+-------------------------------------------------
+3.4 VENDEUR (fatou.ouattara, ibrahim.kone)
+-------------------------------------------------
+  BUT : réaliser les ventes et encaisser au point de vente.
+  Son but est d'enregistrer rapidement les achats clients (caisse),
+  encaisser et fidéliser, sans accès aux données stratégiques.
+  Permission : EstVendeur -> postes autorisés : vendeur, admin
+  Modules dédiés :
+    - VENTES CLIENTS (enregistrement et validation des ventes)
+    - CLIENTS (carnet clients)
+    - PAIEMENTS CLIENTS (encaissement / règlement d'une vente)
+    - PRODUITS (consultation du catalogue et des prix)
+
+  Pourquoi : le vendeur est au contact du client. Il enregistre la
+  vente, applique le prix, encaisse le paiement et suit le client.
+  Il a accès aux infos nécessaires au point de vente mais il ne gère
+  pas la trésorerie globale ni les statistiques (réservées au
+  directeur) pour éviter les conflits et les fraudes.
+
+----------------------------------------------------------------
+4. RESUME DE LA GRILLE D'AUTORISATIONS (qui gère quoi)
+----------------------------------------------------------------
+   MODULE / ACTION              ACCES
+   ---------------------------  ----------------------------------
+   Clients (carnet)             Vendeur (+ admin)
+   Ventes clients               Vendeur (+ admin)
+   Paiements clients (encaisser) Vendeur (+ admin)
+   Produits (catalogue/prix)    Tous les rôles authentifiés
+   Stock (état + mouvements)    Magasinier (+ admin)
+   Fournisseurs                 Magasinier (+ admin)
+   Paiements fournisseurs       Magasinier (+ admin)
+   Achats fournisseurs          Directeur + Magasinier (+ admin)
+     * création/approbation     Directeur (+ admin)
+     * consultation/contrôle    Magasinier (+ admin, lecture seule)
+   Statistiques / Rapports      Directeur (+ admin)
+   Utilisateurs / Comptes       Authentifié (admin gère les accès)
+   Paramètres                   Admin
+
+  Règle générale : la permission `EstX` autorise le poste X ET
+  l'administrateur. L'admin est un super-utilisateur transversal.
+
+----------------------------------------------------------------
+5. LE FLUX GLOBAL DE L'APPLICATION
+----------------------------------------------------------------
+ 1. CONNEXION
+    L'employé se connecte avec son email + mot de passe.
+    Le backend vérifie le poste dans la table `employes` et délivre
+    un jeton JWT (access + refresh). Ce jeton identifie l'employé
+    et son rôle à chaque appel API.
+
+ 2. ENTRÉE DE MARCHANDISE (côté fournisseur / magasinier)
+    - Le magasinier / directeur crée un ACHAT fournisseur.
+    - Le magasinier enregistre le PAIEMENT fournisseur.
+    - Les lignes d'achat déclenchent (via fonctions PostgreSQL) la
+      mise à jour automatique du stock et le calcul du montant total.
+
+ 3. STOCK ET MOUVEMENTS (magasinier)
+    - Les entrées (achats) et sorties (ventes) créent des
+      MOUVEMENTS de stock automatiquement.
+    - Le magasinier consulte l'historique complet et l'état du stock
+      en temps réel (traçabilité).
+
+ 4. VENTE AU CLIENT (vendeur)
+    - Le vendeur enregistre la VENTE et ses lignes.
+    - Le stock du produit baisse automatiquement (fonction
+      fn_maj_stock_vente).
+    - Le vendeur encaisse le PAIEMENT client (espèces, mobile money,
+      carte, virement).
+    - La vente validée déclenche l'historique de stock (sortie).
+
+ 5. ANALYSE (directeur)
+    - Le directeur consulte les STATISTIQUES : chiffre d'affaires,
+      nombre de commandes, meilleur client/produit.
+    - Il génère des RAPPORTS et suit l'activité globale.
+
+ 6. SUPERVISION (administrateur)
+    - L'administrateur supervise tout, corrige les prix, gère les
+      employés et les paramètres.
+
+----------------------------------------------------------------
+6. POURQUOI CES RESTRICTIONS (la logique métier)
+----------------------------------------------------------------
+  - Séparation des tâches : un même utilisateur ne doit pas pouvoir
+    encaisser (vendeur) ET approuver de grosses dépenses (directeur)
+    pour limiter les risques de fraude.
+  - Le magasinier est responsable de la véracité du stock : seul lui
+    (ou l'admin) peut déclarer des mouvements de stock.
+  - Le directeur pilote les décisions stratégiques (achats, stats) ;
+    lui donner l'accès vente/caisse n'est pas son rôle quotidien.
+  - L'administrateur est le filet de sécurité : si une permission
+    bloque, l'admin peut toujours intervenir.
+
+----------------------------------------------------------------
+7. LE FRONTEND : NAVIGATION ET AFFICHAGE PAR RÔLE
+----------------------------------------------------------------
+Le frontend (React + Vite + Tailwind) lit le rôle de l'employé
+connecté (déjà fourni par le token JWT via `/api/utilisateurs/login/`)
+et adapte AUTOMATIQUEMENT le menu, les boutons et les écrans.
+
+  -------------------------------------------------
+  NOTA IMPORTANT
+  -------------------------------------------------
+  - Le frontend masque certains menus selon le rôle : la navigation
+    est "filtrée" (voir Sidebar.tsx -> `roles.includes(userRole)`).
+  - Le backend reste la vraie barrière de sécurité : même si un
+    onglet était forcé dans l'URL, l'API refuse (permission EstX).
+  - Donc côté sécurité, TOUJOURS se fier au backend ; le frontend ne
+    fait QUE cacher ce qui ne concerne pas l'utilisateur.
+
+-------------------------------------------------
+7.1 VENDEUR (client.caisse) — navigation frontend
+-------------------------------------------------
+  Menus visibles : Clients, Produits, Ventes clients, Paiements
+  Comportement spécial :
+    - Le Vendeur n'a PAS de tableau de bord. À la connexion, il est
+      redirigé DIRECTEMENT vers "Ventes clients" (`/ventes`) —
+      voir DashboardPage : `if (role === 'Vendeur') return <Navigate
+      to="/ventes" />`.
+    - Sur la page Ventes, une section "caisse/action de vente"
+      s'affiche en plus (bouton de nouvelle vente).
+  Pourquoi : le vendeur est en boutique, il doit aller vite à
+  l'essentiel (vendre et encaisser) sans être distrait par les
+  statistiques ou la gestion du stock.
+
+-------------------------------------------------
+7.2 MAGASINIER — navigation frontend
+-------------------------------------------------
+  Menus visibles : Tableau de bord, Produits, Fournisseurs,
+                   Achats fournisseurs, Paiements, Stocks
+  Sur la page Produits, il peut ajuster les quantités (réappro.).
+  Sur la page Stocks, il consulte l'état et l'historique des
+  mouvements.
+  Sur la page Fournisseurs, il gère le carnet fournisseurs.
+  Sur la page Achats, il CONSULTE les bons de commande (lecture
+  seule : contrôle de la marchandise à la livraison).
+  Sur la page Paiements, il enregistre les PAIEMENTS FOURNISSEURS.
+  Il n'a PAS accès à : Clients, Ventes (caisse), Statistiques.
+
+-------------------------------------------------
+7.3 DIRECTEUR — navigation frontend
+-------------------------------------------------
+  Menus visibles : Tableau de bord, Statistiques, Rapports,
+                   Achats fournisseurs
+  Le tableau de bord lui montre des indicateurs (CA, ventes...).
+  Sur la page Achats, il crée/valide les réapprovisionnements.
+  Il pilote la stratégie et génère les rapports.
+  Il n'a PAS accès à : la caisse (ventes/paiements), le stock.
+
+-------------------------------------------------
+7.4 ADMINISTRATEUR — navigation complète
+-------------------------------------------------
+  Menus visibles : TOUS (Tableau de bord, Clients, Employés,
+  Fournisseurs, Catégories, Produits, Achats, Ventes, Paiements,
+  Stocks, Statistiques, Rapports, Paramètres).
+  C'est le seul rôle qui peut gérer les Employés et les Paramètres.
+
+-------------------------------------------------
+7.5 TABLEAU DE BORD ADAPTÉ AU RÔLE
+-------------------------------------------------
+  DashboardPage affiche des cartes/blocs différents selon le rôle :
+    - Administrateur : vue d'ensemble complète (ventes, stock,
+      alertes, top clients, top produits).
+    - Directeur : focus chiffre d'affaires et indicateurs.
+    - Magasinier : focus stock (ruptures, seuils, alertes).
+    - Vendeur : pas de dashboard (redirigé vers Ventes).
+
+-------------------------------------------------
+7.6 RESUME FICHIERS FRONTEND LIES AUX ROLES
+-------------------------------------------------
+  - src/components/layout/Sidebar.tsx     -> menu filtré par rôle
+  - src/pages/DashboardPage.tsx           -> tableau de bord adapté
+  - src/pages/VentesPage.tsx              -> mode caisse pour Vendeur
+  - src/pages/ClientsPage.tsx             -> actions Vendeur
+  - src/pages/ProduitsPage.tsx            -> réappro. Magasinier
+  - src/pages/AchatsPage.tsx              -> actions Magasinier
+  - src/pages/EmployesPage.tsx            -> admin uniquement
+  - src/api/services.ts                   -> mappe poste -> role
+
+----------------------------------------------------------------
+8. GRANDEURS CLES DE LA DEMO (données de démonstration)
+----------------------------------------------------------------
+  - 8 catégories, 24 produits
+  - 90 ventes (82 validées)
+  - 24 achats fournisseurs
+  - 78 paiements (67 clients + 11 fournisseurs)
+  - 653 mouvements de stock
+  - 9 historiques de prix
+
+  Bonus : le prix d'un produit est historisé (table historique_prix)
+  à chaque modification grâce à un trigger PostgreSQL.
+
+================================================================
+ Fin du document de présentation
+================================================================
