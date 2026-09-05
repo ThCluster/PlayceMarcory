@@ -190,8 +190,9 @@ export async function fetchPayments(): Promise<PaymentRecord[]> {
   return list.map((p: any) => ({
     id: fmtId(p.id_paiement),
     reference: p.reference_externe ?? `PAY-${p.id_paiement}`,
-    type: (p.type_paiement === 'depense' || p.type_paiement === 'depense') ? 'Dépense' : 'Recette',
-    partyName: '',
+    type: (p.type_paiement === 'fournisseur' || p.type_paiement === 'depense')
+      ? 'Dépense' : 'Recette',
+    partyName: p.tiers ?? '',
     amount: Number(p.montant ?? 0),
     date: fmtDate(p.date_paiement),
     method: mapMethod(p.mode_paiement),
