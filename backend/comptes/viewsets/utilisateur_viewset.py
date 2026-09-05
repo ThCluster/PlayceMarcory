@@ -6,26 +6,48 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from comptes.models.utilisateur import Utilisateur
-from comptes.serializers.utilisateur_serializer import LoginSerializer, UtilisateurSerializer
+from comptes.serializers.utilisateur_serializer import LoginSerializer, UtilisateurSerializer, CreerEmployeInputSerializer
 from comptes.models.verification import verifier_connexion
+from comptes.models.db import creer_employe
+from comptes.permissions import EstDirecteur
 
 class UtilisateurViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    ReadOnlyModelViewSet et non ModelViewSet : la lecture (list/retrieve)
-    peut passer par l'ORM Django sans problème, mais aucune écriture
-    (create/update/delete) n'est exposée ici — toute modification d'un
-    employé doit passer par une fonction PostgreSQL dédiée (creer_employe(),
-    etc.), jamais par l'ORM.
+    Lecture seule par défaut : la consultation (list/retrieve) passe par l'ORM
+    Django, mais toute ÉCRITURE d'un employé passe par des fonctions PostgreSQL
+    dédiées (creer_employe(), etc.), jamais par l'ORM — le mot de passe est
+    haché côté base (crypt + gen_salt).
     """
     queryset = Utilisateur.objects.all()
     serializer_class = UtilisateurSerializer
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        # Seule l'action "login" doit être accessible sans être déjà connecté
+        # La connexion est accessible sans être déjà connecté.
         if self.action == "login":
             return [AllowAny()]
+        # La création d'un employé est réservée au directeur/administrateur.
+        if self.action == "create":
+            return [EstDirecteur()]
         return super().get_permissions()
+
+    def create(self, request):
+        serializer = CreerEmployeInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+
+        id_employe = creer_employe(
+            d["nom"],
+            d["prenom"],
+            d["poste"],
+            d["email"],
+            d["mot_de_passe"],
+            d.get("telephone"),
+        )
+        return Response(
+            {"id_employe": id_employe, "detail": "Employé créé avec succès."},
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=False, methods=["post"])
     def login(self, request):

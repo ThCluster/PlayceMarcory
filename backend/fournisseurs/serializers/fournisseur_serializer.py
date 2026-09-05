@@ -7,7 +7,6 @@ class FournisseurSerializer(serializers.ModelSerializer):
     class Meta:
         model = Fournisseur
         fields = "__all__"
-        read_only_fields = fields
 
 
 class CreerFournisseurInputSerializer(serializers.Serializer):

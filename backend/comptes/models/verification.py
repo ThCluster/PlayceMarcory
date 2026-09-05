@@ -1,4 +1,4 @@
-# comptes/db.py
+# Fichier : comptes/models/verification.py
 # -*- coding: utf-8 -*-
 from django.db import connection
 

@@ -8,14 +8,12 @@ class ProduitSerializer(serializers.ModelSerializer):
     class Meta:
         model = Produit
         fields = "__all__"
-        read_only_fields = fields   # jamais d'écriture ORM directe
 
 
 class VueStockSerializer(serializers.ModelSerializer):
     class Meta:
         model = VueStock
         fields = "__all__"
-        read_only_fields = fields
 
 
 # ---- Serializers d'entrée (actions) ----

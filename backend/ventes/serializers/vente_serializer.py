@@ -8,14 +8,12 @@ class VueCommandeSerializer(serializers.ModelSerializer):
     class Meta:
         model = VueCommande
         fields = "__all__"
-        read_only_fields = fields
 
 
 class LigneVenteSerializer(serializers.ModelSerializer):
     class Meta:
         model = LigneVente
         fields = "__all__"
-        read_only_fields = fields
 
 
 # ---- Serializers d'ENTRÉE (actions), pas des ModelSerializer : ce sont des actions, pas des objets ----

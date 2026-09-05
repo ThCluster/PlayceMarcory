@@ -12,13 +12,7 @@ class UtilisateurManager(BaseUserManager):
     jamais par l'ORM Django : elle se fait via la fonction PostgreSQL
     creer_employe(), qui gère elle-même le hachage du mot de passe.
     """
-    
-    class Meta:
-        managed = False
-        db_table = "employes"
-        verbose_name = _("utilisateur")
-        verbose_name_plural = _("utilisateurs")
-        
+
     def create_user(self, email, **extra_fields):
         raise NotImplementedError(
             "La création d'un utilisateur passe par la fonction PostgreSQL "
@@ -46,11 +40,27 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
     poste = models.CharField(max_length=50, verbose_name=_("Poste"))
     actif = models.BooleanField(default=True, verbose_name=_("Actif"))
 
+    # Le mot de passe est stocké côté PostgreSQL dans la colonne "mot_de_passe",
+    # haché par la fonction creer_employe() (crypt + gen_salt). On le mappe sur
+    # le champ attendu par AbstractBaseUser.
+    password = models.CharField(
+        max_length=255,
+        db_column="mot_de_passe",
+        editable=False,
+        blank=True,
+        null=True,
+    )
+
     objects = UtilisateurManager()
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
 
+    class Meta:
+        managed = False
+        db_table = "employes"
+        verbose_name = _("utilisateur")
+        verbose_name_plural = _("utilisateurs")
 
     def __str__(self):
         return f"{self.prenom} {self.nom} ({self.poste})"
