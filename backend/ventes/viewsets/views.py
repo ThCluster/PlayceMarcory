@@ -75,3 +75,32 @@ class VenteViewSet(viewsets.ReadOnlyModelViewSet):
     def annuler(self, request, pk=None):
         executer_avec_gestion_erreur(annuler_vente, pk)
         return Response({"detail": "Vente annulée."})
+
+    @action(detail=False, methods=["get"], url_path="recap-produits")
+    def recap_produits(self, request):
+        """Agrège en une requête SQL les quantités/CA vendues par produit,
+        avec la catégorie. Permet au Dashboard de calculer le Top produits
+        et la répartition par catégorie à partir des vraies ventes."""
+        from django.db import connection
+        with connection.cursor() as cur:
+            cur.execute(
+                """
+                SELECT p.nom,
+                       c.nom AS categorie,
+                       SUM(lv.quantite) AS quantite,
+                       SUM(lv.montant_ligne) AS montant
+                FROM lignes_vente lv
+                JOIN produits p ON p.id_produit = lv.id_produit
+                JOIN categories c ON c.id_categorie = p.id_categorie
+                JOIN ventes v ON v.id_vente = lv.id_vente
+                WHERE v.statut = 'validee'
+                GROUP BY p.nom, c.nom
+                ORDER BY montant DESC
+                """
+            )
+            rows = [
+                {"nom": r[0], "categorie": r[1],
+                 "quantite": float(r[2] or 0), "montant": float(r[3] or 0)}
+                for r in cur.fetchall()
+            ]
+        return Response(rows)

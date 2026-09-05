@@ -69,6 +69,17 @@ class ProduitViewSet(viewsets.ReadOnlyModelViewSet):
         )
         return Response({"detail": "Stock ajusté."})
 
+    @action(detail=False, methods=["get"], url_path="categories")
+    def categories(self, request):
+        """Liste des catégories réelles (id + nom) pour la création de produit."""
+        from django.db import connection
+        with connection.cursor() as cur:
+            cur.execute("SELECT id_categorie, nom FROM categories ORDER BY nom")
+            rows = cur.fetchall()
+        return Response(
+            [{"id_categorie": r[0], "nom": r[1]} for r in rows]
+        )
+
 
 class VueStockViewSet(viewsets.ReadOnlyModelViewSet):
     """Lecture seule du stock, avec alertes déjà calculées par PostgreSQL."""

@@ -30,9 +30,11 @@ router.register("statistiques/top-clients", VueTopClientsViewSet, basename="top-
 router.register("statistiques/top-produits", VueTopProduitsViewSet, basename="top-produits")
 
 urlpatterns = [
-    path("", include(router.urls)),
+    # Les routes explicites (paiements/clients, paiements/fournisseurs,
+    # statistiques/...) doivent passer AVANT le router, sinon le router
+    # "paiements/{pk}" capture "paiements/clients" (pk='clients' -> 404/405).
     path("", include(paiements_urlpatterns)),
     path("", include(statistiques_urlpatterns)),
+    path("", include(router.urls)),
     path("token/refresh/", TokenRefreshView.as_view()),
-    
 ]

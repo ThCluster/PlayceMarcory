@@ -24,3 +24,9 @@ class EstMagasinier(EstPoste):
 
 class EstDirecteur(EstPoste):
     postes_autorises = ["directeur", "administrateur"]
+
+
+class EstAchats(EstPoste):
+    """Achats fournisseurs : gérés par le magasinier (réappro.) et
+    approuvés/suivis par le directeur."""
+    postes_autorises = ["directeur", "magasinier", "administrateur"]
